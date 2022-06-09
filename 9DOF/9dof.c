@@ -54,8 +54,9 @@ int main()
 {
     init_platform();
 
-    print("Hello World\n\r");
-    print("Successfully ran Hello World application");
+    print("========================================\n\r");
+    print("=========== zynqBC 9DOF ================\n\r");
+    print("========================================");
     cleanup_platform();
     return 0;
 }
