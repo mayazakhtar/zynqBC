@@ -48,15 +48,60 @@
 #include <stdio.h>
 #include "platform.h"
 #include "xil_printf.h"
+#include "xgpio.h"
+#include "xstatus.h"
+#include "xspi.h"
+#include "Xil_io.h"
 
+XSpi_Config *ConfigPtr;	/* Pointer to Configuration data */
+XSpi Spi;
+
+int spiInit(void);
+
+//function to read from bme registers using spi
+void dof_Read(u8 Add, u8 * buffer, u8 N){
+	u8 Write[N+1];
+	Write[0] = Add | 0x80;			//R/W = 1
+	XSpi_Transfer(&Spi, Write, buffer, N+1);
+}
+
+//function to write in bme registers using spi
+void dof_Write(u8 Add, u8 val){
+	u8 Write[2], Read[2];
+	Write[0] = Add & 0x7F;		//R/W = 0
+	Write[1] = val;
+	XSpi_Transfer(&Spi, Write, Read, 2);
+}
 
 int main()
 {
     init_platform();
+    spiInit();
 
-    print("========================================\n\r");
-    print("=========== zynqBC 9DOF ================\n\r");
-    print("========================================");
+    while(1){
+    	u8 readbuff[3];
+    	dof_Read(0x0F,readbuff,2);
+    }
+
     cleanup_platform();
     return 0;
+}
+
+int spiInit(void){
+	int Status;
+	ConfigPtr = XSpi_LookupConfig(0U);
+	if (ConfigPtr == NULL) {
+		return XST_DEVICE_NOT_FOUND;
+	}
+	Status = XSpi_CfgInitialize(&Spi, ConfigPtr,ConfigPtr->BaseAddress);
+	if (Status != XST_SUCCESS) {
+		return XST_FAILURE;
+	}
+	Status = XSpi_SetOptions(&Spi, XSP_MASTER_OPTION );
+	if (Status != XST_SUCCESS) {
+		return XST_FAILURE;
+	}
+	XSpi_Start(&Spi);
+	XSpi_IntrGlobalDisable(&Spi);
+	XSpi_SetSlaveSelect(&Spi, 0x01);
 }
