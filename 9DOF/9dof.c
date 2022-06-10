@@ -58,29 +58,62 @@ XSpi Spi;
 
 int spiInit(void);
 
-//function to read from bme registers using spi
-void dof_Read(u8 Add, u8 * buffer, u8 N){
+//function to read from 9dof accelerometer/gyro registers using spi
+void dof_ag_Read(u8 Add, u8 * buffer, u8 N){
 	u8 Write[N+1];
 	Write[0] = Add | 0x80;			//R/W = 1
 	XSpi_Transfer(&Spi, Write, buffer, N+1);
 }
 
-//function to write in bme registers using spi
-void dof_Write(u8 Add, u8 val){
+//function to write in 9dof accelerometer/gyro registers using spi
+void dof_ag_Write(u8 Add, u8 val){
 	u8 Write[2], Read[2];
 	Write[0] = Add & 0x7F;		//R/W = 0
 	Write[1] = val;
 	XSpi_Transfer(&Spi, Write, Read, 2);
 }
 
+void ag_check( void){
+	u8 readbuffcheck[2];
+	dof_ag_Read(0x0F,readbuffcheck,2);
+	if (readbuffcheck[1]==0x68){
+		print("AG Spi is working\n\r");
+	}
+	else {
+		print("AG Spi is not working\n\r");
+	}
+}
+
+float get_acceleration(int* xaxis,int* yaxis,int* zaxis){
+	int32_t x1,x2,y1,y2,z1,z2;
+	u8 accelerometerbuff[10]={0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
+	dof_ag_Write(0x20,0x48);   //setting accelerometer settings
+	dof_ag_Read(0x27,accelerometerbuff,7);   //reading accelerometer reading
+	x1=(int32_t)accelerometerbuff[2];
+	x2=(int32_t)accelerometerbuff[3];
+	y1=(int32_t)accelerometerbuff[4];
+	y2=(int32_t)accelerometerbuff[5];
+	z1=(int32_t)accelerometerbuff[6];
+	z2=(int32_t)accelerometerbuff[7];
+	xaxis=(x2<<8)|x1;
+	yaxis=(y2<<8)|y1;
+	zaxis=(z2<<8)|z1;
+	//return xaxis,yaxis,zaxis;
+}
+
 int main()
 {
     init_platform();
     spiInit();
+    ag_check();
 
     while(1){
-    	u8 readbuff[3];
-    	dof_Read(0x0F,readbuff,2);
+//    	u8 accelbuff[10]={0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
+//    	dof_ag_Write(0x20,0x48);
+//    	dof_ag_Read(0x28,accelbuff,6);
+    	int xaxis,yaxis,zaxis;
+    	get_acceleration(&xaxis,&yaxis,&zaxis);
+    	for(int i=0; i<10;i++){};
     }
 
     cleanup_platform();
