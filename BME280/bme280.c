@@ -14,6 +14,7 @@ float readbmetemp();
 float readbmepress();
 float readbmehumid();
 void BMEconfig();
+void readBuff();
 int spiInit(void);
 
 #define BME280_REGISTER_DIG_TEMP_START 0x88
@@ -48,6 +49,7 @@ struct GLOBALS {
 	int32_t read_dig_t1, read_dig_t2, read_dig_t3;
 	int64_t read_dig_p1, read_dig_p2, read_dig_p3, read_dig_p5, read_dig_p4, read_dig_p6, read_dig_p7, read_dig_p8, read_dig_p9;
 	int32_t read_dig_h1, read_dig_h2, read_dig_h3, read_dig_h5, read_dig_h4, read_dig_h6;
+	u8 readregisters[10];
 } g;
 
 //function to read trimming parameters
@@ -94,6 +96,7 @@ int main()
     trimming_readout();
 
     while(1){
+    	readBuff();
     	float temp1=readbmetemp();    //Reading temperature
     	for(int i=0; i<10;i++){};
     	float press=readbmepress();   //Reading pressure
@@ -125,23 +128,18 @@ int spiInit(void){
 	XSpi_SetSlaveSelect(&Spi, 0x01);
 }
 
+void readBuff(){
+	BME_Write(0xF2, 0x02);	//Calculate only humidity
+	BME_Write(0xF4, 0x45);	//Calculate only temperature in Forced Mode
+	BME_Read(0xF7,g.readregisters,8);
+}
+
 //function to calculate temperature
 float readbmetemp(){
 	int32_t tvar0, tvar1=0;
 	int32_t tvar2=0;
 
-	u8 Readbufftemp[10];
-
-	BME_Read(0xD0, Readbufftemp, 1);
-	if(Readbufftemp[1] != 0x60){
-		return NAN;
-	}
-
-	BME_Write(0xF4, 0x41);	//Calculate only temperature in Forced Mode
-
-	BME_Read(0xF7, Readbufftemp, 8);
-
-	int32_t read_adc = {(Readbufftemp[6]>>4) + (int32_t)Readbufftemp[5] * 16 + (int32_t)Readbufftemp[4] * 256 * 16};
+	int32_t read_adc = {(g.readregisters[6]>>4) + (int32_t)g.readregisters[5] * 16 + (int32_t)g.readregisters[4] * 256 * 16};
 
 	tvar0 = (read_adc>>3)-(g.read_dig_t1<<1);
 	tvar1 = (tvar0*g.read_dig_t2)>>11;
@@ -154,63 +152,42 @@ float readbmetemp(){
 
 //function to calculate pressure
 float readbmepress(){
-	readbmetemp();
-	int64_t pvar1, pvar2, pvar3, pvar4=0;
-	u8 Readbuffpress[10]={0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
+	int64_t pvar1=0;
+	int64_t pvar2=0;
+	int64_t pvar3=0;
+	int64_t pvar4=0;
 
-    BME_Write(0xE0, 0xB6); //Reset the Device
-    BME_Wait();
-
-	BME_Read(0xD0, Readbuffpress, 1);
-	if(Readbuffpress[1] != 0x60){
-		return NAN;
-	}
-
-	BME_Write(0xF4, 0x09);	//Calculate only pressure in Forced Mode
-
-	BME_Read(0xF7, Readbuffpress, 8);
-
-	int32_t adc_p = {(Readbuffpress[3]>>4) + (int32_t)Readbuffpress[2] * 16 + (int32_t)Readbuffpress[1] * 256 * 16};
+	int32_t adc_p = {(g.readregisters[3]>>4) + (int32_t)g.readregisters[2] * 16 + (int32_t)g.readregisters[1] * 256 * 16};
 
 	pvar1 = ((int64_t)g.t_fine) - 128000;
-	pvar2 = pvar1 * pvar1 * g.read_dig_p6;
-	pvar2 = pvar2 + ((pvar1 * g.read_dig_p5) * 131072);
-	pvar2 = pvar2 + ((g.read_dig_p4) * 34359738368);
-	pvar1 = ((pvar1 * pvar1 * g.read_dig_p3) / 256) + ((pvar1 * (g.read_dig_p2) * 4096));
+	pvar2 = pvar1 * pvar1 * (int64_t)g.read_dig_p6;
+	pvar2 = pvar2 + ((pvar1 * (int64_t)g.read_dig_p5) * 131072);
+	pvar2 = pvar2 + (((int64_t)g.read_dig_p4) * 34359738368);
+	pvar1 = ((pvar1 * pvar1 * (int64_t)g.read_dig_p3) / 256) + ((pvar1 * ((int64_t)g.read_dig_p2) * 4096));
 	pvar3 = ((int64_t)1) * 140737488355328;
-	pvar1 = (pvar3 + pvar1) * (g.read_dig_p1) / 8589934592;
+	pvar1 = (pvar3 + pvar1) * ((int64_t)g.read_dig_p1) / 8589934592;
 
 	if (pvar1 == 0) {
 	   return 0; // avoid exception caused by division by zero
 	}
-
+	adc_p <<= 4;
 	pvar4 = 1048576 - adc_p;
 	pvar4 = (((pvar4 * 2147483648) - pvar2) * 3125) / pvar1;
-	pvar1 = ((g.read_dig_p9) * (pvar4 / 8192) * (pvar4 / 8192)) / 33554432;
-	pvar2 = ((g.read_dig_p8) * pvar4) / 524288;
-	pvar4 = ((pvar4 + pvar1 + pvar2) / 256) + ((g.read_dig_p7) * 16);
+	pvar1 = (((int64_t)g.read_dig_p9) * (pvar4 / 8192) * (pvar4 / 8192)) / 33554432;
+	pvar2 = (((int64_t)g.read_dig_p8) * pvar4) / 524288;
+	pvar4 = ((pvar4 + pvar1 + pvar2) / 256) + (((int64_t)g.read_dig_p7) * 16);
 
 	float P = pvar4 / 256.0;
+	//float P = (uint32_t)(((pvar4 / 2) * 100) / 128);
 
 	return P;
 }
 
 //function to calculate humidity
 float readbmehumid(){
-	readbmetemp();
 	int32_t hvar1, hvar2, hvar3, hvar4, hvar5;
 
-	u8 Readbuffhumid[3]={0x00,0x00,0x00};
-
-	BME_Read(0xD0, Readbuffhumid, 1);
-	if(Readbuffhumid[1] != 0x60){
-		return NAN;
-	}
-
-	BME_Write(0xF2, 0x02);	//Calculate only humidity
-	BME_Read(0xFD, Readbuffhumid, 2);
-
-	int32_t adc_h = {(Readbuffhumid[2]) + (int32_t)Readbuffhumid[1] * 16 *16};
+	int32_t adc_h = {(g.readregisters[8]) + (int32_t)g.readregisters[7] * 16 *16};
 	hvar1 = g.t_fine - ((int32_t)76800);
 	hvar2 = (int32_t)(adc_h * 16384);
 	hvar3 = (int32_t)(((int32_t)g.read_dig_h4) * 1048576);
