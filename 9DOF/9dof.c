@@ -84,10 +84,23 @@ void ag_check( void){
 	}
 }
 
+void initGyro(){
+	dof_ag_Write(0x10,0xC0);
+	dof_ag_Write(0x11,0x00);
+	dof_ag_Write(0x12,0x00);
+	dof_ag_Write(0x1E,0x38);
+}
+
+void initAccel(){
+	dof_ag_Write(0x1F,0x38);
+	dof_ag_Write(0x20,0x00);
+	dof_ag_Write(0x21,0x00);
+}
+
 float get_acceleration(int16_t* axaxis,int16_t* ayaxis,int16_t* azaxis){
 	int16_t ax1,ax2,ay1,ay2,az1,az2;
 	u8 accelerometerbuff[10]={0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
-	dof_ag_Write(0x20,0x48);   //setting accelerometer settings
+	//dof_ag_Write(0x20,0x48);   //setting accelerometer settings
 	dof_ag_Read(0x27,accelerometerbuff,7);   //reading accelerometer values from register
 	ax1=(int16_t)accelerometerbuff[2];
 	ax2=(int16_t)accelerometerbuff[3];
@@ -101,10 +114,10 @@ float get_acceleration(int16_t* axaxis,int16_t* ayaxis,int16_t* azaxis){
 	//return xaxis,yaxis,zaxis;
 }
 
-float get_gyro(int16_t* gxaxis,int16_t* gyaxis,int16_t* gzaxis){
+float get_gyro(){
 	int16_t gx1,gx2,gy1,gy2,gz1,gz2;
-	u8 gyrobuff[10];
-	dof_ag_Write(0x10,0x20);   //setting gyro
+	u8 gyrobuff[10]={0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
+	//dof_ag_Write(0x10,0x20);   //setting gyro
 	dof_ag_Read(0x17,gyrobuff,7);  //reading gyro values from register
 	gx1=(int16_t)gyrobuff[2];
 	gx2=(int16_t)gyrobuff[3];
@@ -112,9 +125,9 @@ float get_gyro(int16_t* gxaxis,int16_t* gyaxis,int16_t* gzaxis){
 	gy2=(int16_t)gyrobuff[5];
 	gz1=(int16_t)gyrobuff[6];
 	gz2=(int16_t)gyrobuff[7];
-	gxaxis=(gx2<<8)|gx1;
-	gyaxis=(gy2<<8)|gy1;
-	gzaxis=(gz2<<8)|gz1;
+	int16_t gxaxis=(gx2<<8)|gx1;
+	int16_t gyaxis=(gy2<<8)|gy1;
+	int16_t gzaxis=(gz2<<8)|gz1;
 }
 
 int main()
@@ -122,6 +135,8 @@ int main()
     init_platform();
     spiInit();
     ag_check();
+    initAccel();
+    initGyro();
 
     while(1){
 //    	u8 accelbuff[10]={0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
@@ -130,7 +145,7 @@ int main()
     	int16_t axaxis,ayaxis,azaxis,gxaxis,gyaxis,gzaxis;
     	get_acceleration(&axaxis,&ayaxis,&azaxis);
     	//for(int i=0; i<10;i++){};
-    	get_gyro(&gxaxis,&gyaxis,&gzaxis);
+    	get_gyro();
     	//for(int i=0; i<10;i++){};
     }
 
